@@ -203,6 +203,9 @@ def vlad(files, mus, powernorm, gmp=False, gamma=1000):
         f_enc = f_enc / (np.linalg.norm(f_enc) + 1e-12)
         encodings.append(f_enc)
 
+    encodings = np.stack(encodings, axis=0)
+    print("enc_test shape:", encodings.shape)  # 调试用
+
 
     return encodings
 
@@ -249,6 +252,13 @@ def distances(encs):
     # compute cosine distance = 1 - dot product between l2-normalized
     # encodings
     # TODO
+    # 测试代码
+    # encs = encs.astype(np.float32)
+    # if encs.ndim == 1:
+    #     encs = encs[None, :]
+    # sims = np.dot(encs, encs.T)  # N x N
+    # dists = 1.0 - sims
+
     # mask out distance with itself
     np.fill_diagonal(dists, np.finfo(dists.dtype).max)
     return dists
@@ -295,13 +305,17 @@ if __name__ == '__main__':
                                          args.labels_train)
     print('#train: {}'.format(len(files_train)))
     if not os.path.exists('mus.pkl.gz'):
-        max_descs = 500000
+        max_descs = 50000
         print('> load random descriptors')
         descriptors = loadRandomDescriptors(files_train, max_descs)
         print('> loaded {} descriptors:'.format(len(descriptors)))
         # cluster centers
         print('> compute dictionary')
-        mus = dictionary(descriptors, n_clusters=100)
+        mus = dictionary(descriptors, n_clusters=20)
+        # print('mus shape:', mus.shape)
+        # import sys
+        #
+        # sys.exit(0)  #
         with gzip.open('mus.pkl.gz', 'wb') as fOut:
             cPickle.dump(mus, fOut, -1)
     else:
@@ -310,13 +324,15 @@ if __name__ == '__main__':
 
   
     # b) VLAD encoding
+
     print('> compute VLAD for test')
     files_test, labels_test = getFiles(args.in_test, args.suffix,
                                        args.labels_test)
     print('#test: {}'.format(len(files_test)))
-    fname = 'enc_test_gmp{}.pkl.gz'.format(gamma) if args.gmp else 'enc_test.pkl.gz'
+    fname = 'enc_test_gmp{}.pkl.gz'.format(args.gamma) if args.gmp else 'enc_test.pkl.gz'
     if not os.path.exists(fname) or args.overwrite:
         # TODO
+        enc_test = vlad(files_test, mus, args.powernorm, args.gmp, args.gamma)
         with gzip.open(fname, 'wb') as fOut:
             cPickle.dump(enc_test, fOut, -1)
     else:
