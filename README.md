@@ -14,9 +14,11 @@ This project implements a full writer identification and retrieval pipeline usin
 
 - **Exemplar SVM feature transformation (E-SVM)**
 
+
   
 
-#### The goal is:
+### The goal is:
+
 
 Given an image of a handwritten manuscript, find the **person who wrote this image** (Top-1 accuracy) or retrieve the **most similar document of the same author** (mAP).
 
@@ -62,14 +64,16 @@ Each `.pkl.gz` file contains local features of a graph (such as an Nx128 SIFT).
 Construct a codebook using MiniBatch KMeans (clusters = K).
 
 Corresponding VLAD embedding formula:
+
 $$
-ϕ_k(x) = (x - μ_k)
+\phi_k(x) = (x - \mu_k)
 $$
+
 
 ### 3️⃣ VLAD Encoding
 
 Aggregate local features for each image → a global 6400-D descriptor (K=50, D=128).
-
+<img width="600" alt="VLAD Embedding" src="https://github.com/user-attachments/assets/d2c6cec5-f0b9-4b60-88a0-2c8685f25679" />
 
 
 ### 4️⃣ Power Normalization
@@ -82,13 +86,16 @@ GMP is a ridge regression solution:
  
 $$
 \xi_{gmp} = \arg\min \Vert Φ^T ξ - 1\Vert^2 + λ \Vert ξ\Vert^2
- 
 $$
+
  Where λ is the `--gamma` parameter in the code.
 
 ### 6️⃣ Writer Retrieval via Cosine Distance
 
-![image-20251205164352509](C:\Users\LENOVO\AppData\Roaming\Typora\typora-user-images\image-20251205164352509.png)
+
+
+<img width="600" alt="屏幕截图 2025-12-05 164348" src="https://github.com/user-attachments/assets/336ea8f6-fd55-4f19-9707-e53d71eca2ed" />
+
 
 ### 7️⃣ Exemplar SVM (E-SVM) Transformation
 
@@ -96,10 +103,7 @@ A personalized classifier is trained for each test image:
 
 
 $$
-\min_{w,b} \frac12 |w|^2
-
-- c_p \max(0, 1 - w^T x_p - b)^2
-- \sum_{x_n \in N} c_n \max(0, 1 + w^T x_n + b)^2
+\min_{w,b} \frac12 |w|^2- c_p \max(0, 1 - w^T x_p - b)^2 - \sum_{x_n \in N} c_n \max(0, 1 + w^T x_n + b)^2
 $$
  
 
