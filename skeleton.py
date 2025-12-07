@@ -204,9 +204,7 @@ def vlad(files, mus, powernorm, gmp=False, gamma=1000):
         encodings.append(f_enc)
 
     encodings = np.stack(encodings, axis=0)
-    print("enc_test shape:", encodings.shape)  # 调试用
-
-
+    print("VLAD encodings shape:", encodings.shape)
     return encodings
 
 def esvm(encs_test, encs_train, C=1000):
@@ -226,8 +224,9 @@ def esvm(encs_test, encs_train, C=1000):
     encs_test = np.asarray(encs_test, dtype=np.float32)
     encs_train = np.asarray(encs_train, dtype=np.float32)
 
+    n_test, D = encs_test.shape
     n_neg = encs_train.shape[0]
-    D = encs_train.shape[1]
+
 
     # 所有 E-SVM 共享同一套标签：
     # 第 0 个样本 = 正样本(当前 query)，其余 M 个 = 负样本
@@ -252,10 +251,11 @@ def esvm(encs_test, encs_train, C=1000):
 
         return w[None, :]  # 返回 1 x D，方便后面 concatenate
 
-    # 并行地对每一个 test 样本做上面的操作
-    new_encs = list(parmap(loop, tqdm(range(len(encs_test)))))
-    new_encs = np.concatenate(new_encs, axis=0)  # N x D
+    new_encs_list = []
+    for i in tqdm(range(n_test), desc='E-SVM'):
+        new_encs_list.append(loop(i))
 
+    new_encs = np.concatenate(new_encs_list, axis=0)  # N x D
     return new_encs
 
 
@@ -270,13 +270,12 @@ def distances(encs):
     # compute cosine distance = 1 - dot product between l2-normalized
     # encodings
     # TODO
-    # 测试代码
-    # encs = encs.astype(np.float32)
-    # if encs.ndim == 1:
-    #     encs = encs[None, :]
-    # sims = np.dot(encs, encs.T)  # N x N
-    # dists = 1.0 - sims
-
+    # mask out distance with itself
+    encs = np.asarray(encs, dtype=np.float32)
+    # encs 已经是 L2-normalized（VLAD 里做过），所以 dot product 即为 cosine similarity
+    sims = np.dot(encs, encs.T)  # T x T
+    # cosine distance = 1 - cosine similarity
+    dists = 1.0 - sims
     # mask out distance with itself
     np.fill_diagonal(dists, np.finfo(dists.dtype).max)
     return dists
@@ -330,10 +329,7 @@ if __name__ == '__main__':
         # cluster centers
         print('> compute dictionary')
         mus = dictionary(descriptors, n_clusters=100)
-        # print('mus shape:', mus.shape)
-        # import sys
-        #
-        # sys.exit(0)  #
+
         with gzip.open('mus.pkl.gz', 'wb') as fOut:
             cPickle.dump(mus, fOut, -1)
     else:
@@ -363,19 +359,18 @@ if __name__ == '__main__':
 
     # d) compute exemplar svms
     print('> compute VLAD for train (for E-SVM)')
-    fname = 'enc_train_gmp{}.pkl.gz'.format(gamma) if args.gmp else 'enc_train.pkl.gz'
-    if not os.path.exists(fname) or args.overwrite:
-        # TODO
-        with gzip.open(fname, 'wb') as fOut:
+    fname_train = 'enc_train_gmp{}.pkl.gz'.format(args.gamma) if args.gmp else 'enc_train.pkl.gz'
+    if not os.path.exists(fname_train) or args.overwrite:
+        enc_train = vlad(files_train, mus, args.powernorm, args.gmp, args.gamma)
+        with gzip.open(fname_train, 'wb') as fOut:
             cPickle.dump(enc_train, fOut, -1)
     else:
-        with gzip.open(fname, 'rb') as f:
+        with gzip.open(fname_train, 'rb') as f:
             enc_train = cPickle.load(f)
 
     print('> esvm computation')
-    # TODO
-    enc_test = esvm(enc_test, enc_train, C=args.C)
-    # eval
-    print('> evaluate')
-    evaluate(enc_test, labels_test)
+    enc_test_esvm = esvm(enc_test, enc_train, C=args.C)
 
+    # eval
+    print('> evaluate (E-SVM)')
+    evaluate(enc_test_esvm, labels_test)
